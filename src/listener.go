@@ -15,7 +15,7 @@ import (
 type metricsPlugin struct {
 	name        string
 	resolution  int
-	metricsFunc plugin.Symbol
+	metricsFunc func() []*types.Metric
 	object      *plugin.Plugin
 }
 
@@ -56,7 +56,7 @@ func loadPlugin(path string) (p *metricsPlugin) {
 
 	p = new(metricsPlugin)
 	p.object = obj
-	p.metricsFunc = symbol
+	p.metricsFunc = symbol.(func() []*types.Metric)
 	p.resolution = *resolution.(*int)
 
 	return p
@@ -66,7 +66,7 @@ func main() {
 	log.SetLevel(log.DebugLevel)
 
 	var p = loadPlugin("sample.so")
-	m := p.metricsFunc.(func() []*types.Metric)()
+	m := p.metricsFunc()
 	fmt.Printf("metric name: %s\n", m[0].Name)
 
 	log.Debug("starting server ...")
