@@ -1,7 +1,8 @@
 package main
 
 import (
-	"math/rand"
+	"os"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -9,16 +10,21 @@ import (
 var (
 	Resolution int64 = 10000
 
-	RandNumber = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "some_rand_number",
-		Help: "Current random number between 0 and 100",
+	metrics = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "tmp_file_age",
+		Help: "Age of /tmp/testfile",
 	})
 )
 
 func GetCollector() prometheus.Collector {
-	return RandNumber
+	return metrics
 }
 
 func UpdateMetric() {
-	RandNumber.Set(float64(rand.Intn(99)))
+	stat, err := os.Stat("/tmp/testfile")
+	if err == nil {
+		metrics.Set(float64(time.Since(stat.ModTime()).Seconds()))
+	} else {
+		metrics.Set(float64(0))
+	}
 }
