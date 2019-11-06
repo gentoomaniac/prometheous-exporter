@@ -19,6 +19,7 @@ func GetMetrics() (m []*types.Metric) {
 		"foo":  "bar",
 		"fizz": "buzz",
 	}
+	metric.Type = "gauge"
 	metric.Help = "just a test metric"
 	metric.Value = rand.Int()
 	m = append(m, metric)

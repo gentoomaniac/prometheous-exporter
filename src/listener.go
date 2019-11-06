@@ -31,19 +31,22 @@ func getenvDefault(name string, defaultValue string) string {
 	return value
 }
 
-// return representation of current state
-// needs shared data with a main metrics loop that is periodically collecting metric updates
-// https://stackoverflow.com/questions/39207608/how-does-golang-share-variables-between-goroutines
 func handleMetricsEndpoint(w http.ResponseWriter, r *http.Request) {
 	response := make([]string, 0)
 
 	for _, v := range metrics {
 		labelstrings := make([]string, 0)
 		for _, e := range v {
+			if e.Help != "" {
+				response = append(response, fmt.Sprintf("# HELP %s\n", e.Help))
+			}
+			if e.Type != "" {
+				response = append(response, fmt.Sprintf("# TYPE %s %s\n", e.Name, e.Type))
+			}
 			for lk, lv := range e.Labels {
 				labelstrings = append(labelstrings, fmt.Sprintf("%s=%s", lk, lv))
 			}
-			response = append(response, fmt.Sprintf("%s{%s} %d", e.Name, strings.Join(labelstrings, ","), e.Value))
+			response = append(response, fmt.Sprintf("%s{%s} %d\n", e.Name, strings.Join(labelstrings, ","), e.Value))
 		}
 	}
 
@@ -103,7 +106,9 @@ func main() {
 	metrics = make(map[string][]*types.Metric)
 
 	var p = loadPlugin("sample.so")
+	go runPlugin(p)
 
+	p = loadPlugin("sample2.so")
 	go runPlugin(p)
 
 	log.Debug("starting server ...")

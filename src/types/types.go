@@ -7,4 +7,5 @@ type Metric struct {
 	Help    string
 	Labels  map[string]string
 	Comment string
+	Type    string
 }
