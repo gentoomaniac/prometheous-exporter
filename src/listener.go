@@ -8,6 +8,7 @@ import (
 	"time"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/alecthomas/kingpin"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -77,15 +78,22 @@ func runPlugin(p *metricsPlugin) {
 	}
 }
 
+var (
+	verbose = kingpin.Flag("verbose", "Verbose mode.").Short('v').Bool()
+	plugins = kingpin.Flag("plugin", "Load the specified plugin").Short('p').Strings()
+)
+
 func main() {
 	log.SetLevel(log.DebugLevel)
+	kingpin.Version("0.0.1")
+	kingpin.Parse()
 
 	loadedPlugins = make([]*metricsPlugin, 0)
 
-	var p = loadPlugin("sample.so")
-	loadedPlugins = append(loadedPlugins, p)
-	p = loadPlugin("sample2.so")
-	loadedPlugins = append(loadedPlugins, p)
+	for _, path := range *plugins {
+		var p = loadPlugin(path)
+		loadedPlugins = append(loadedPlugins, p)
+	}
 
 	for _, plugin := range loadedPlugins {
 		prometheus.MustRegister(plugin.collectorFunc())
