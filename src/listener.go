@@ -7,10 +7,10 @@ import (
 	"plugin"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/alecthomas/kingpin"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/prometheus/common/log"
 )
 
 type metricsPlugin struct {
@@ -84,7 +84,6 @@ var (
 )
 
 func main() {
-	log.SetLevel(log.DebugLevel)
 	kingpin.Version("0.0.1")
 	kingpin.Parse()
 
