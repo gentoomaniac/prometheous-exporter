@@ -3,25 +3,25 @@ package main
 import (
 	"math/rand"
 
-	"../../types"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
-var Resolution int64 = 1000
+var (
+	Resolution int64 = 10000
 
-func GetMetrics() (m []*types.Metric) {
-	var metric *types.Metric
+	HddFailures = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "hd_errors_total",
+			Help: "Number of hard-disk errors.",
+		},
+		[]string{"device"},
+	)
+)
 
-	m = []*types.Metric{}
-	metric = new(types.Metric)
+func GetCollector() prometheus.Collector {
+	return HddFailures
+}
 
-	metric.Name = "fizz.buzz.metric"
-	metric.Labels = map[string]string{
-		"foobar": "barfoo",
-	}
-	metric.Type = "gauge"
-	metric.Help = "some other metric"
-	metric.Value = rand.Intn(99)
-	m = append(m, metric)
-
-	return m
+func UpdateMetric() {
+	HddFailures.With(prometheus.Labels{"device": "/dev/sda"}).Add((float64(rand.Intn(99))))
 }

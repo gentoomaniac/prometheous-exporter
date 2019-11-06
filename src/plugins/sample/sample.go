@@ -3,26 +3,22 @@ package main
 import (
 	"math/rand"
 
-	"../../types"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
-var Resolution int64 = 10000
+var (
+	Resolution int64 = 10000
 
-func GetMetrics() (m []*types.Metric) {
-	var metric *types.Metric
+	RandNumber = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "some_rand_number",
+		Help: "Current random number between 0 and 100",
+	})
+)
 
-	m = []*types.Metric{}
-	metric = new(types.Metric)
+func GetCollector() prometheus.Collector {
+	return RandNumber
+}
 
-	metric.Name = "test.metric"
-	metric.Labels = map[string]string{
-		"foo":  "bar",
-		"fizz": "buzz",
-	}
-	metric.Type = "gauge"
-	metric.Help = "just a test metric"
-	metric.Value = rand.Int()
-	m = append(m, metric)
-
-	return m
+func UpdateMetric() {
+	RandNumber.Set(float64(rand.Intn(99)))
 }

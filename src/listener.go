@@ -5,23 +5,22 @@ import (
 	"net/http"
 	"os"
 	"plugin"
-	"strings"
 	"time"
 
-	"./types"
-
 	log "github.com/Sirupsen/logrus"
-	"github.com/gorilla/mux"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 type metricsPlugin struct {
-	name        string
-	resolution  int64
-	metricsFunc func() []*types.Metric
-	object      *plugin.Plugin
+	name          string
+	resolution    int64
+	collectorFunc func() prometheus.Collector
+	metricsFunc   func()
+	object        *plugin.Plugin
 }
 
-var metrics map[string][]*types.Metric
+var loadedPlugins []*metricsPlugin
 
 func getenvDefault(name string, defaultValue string) string {
 	value := os.Getenv(name)
@@ -29,32 +28,6 @@ func getenvDefault(name string, defaultValue string) string {
 		return defaultValue
 	}
 	return value
-}
-
-func handleMetricsEndpoint(w http.ResponseWriter, r *http.Request) {
-	response := make([]string, 0)
-
-	for _, v := range metrics {
-		labelstrings := make([]string, 0)
-		for _, e := range v {
-			if e.Help != "" {
-				response = append(response, fmt.Sprintf("# HELP %s\n", e.Help))
-			}
-			if e.Type != "" {
-				response = append(response, fmt.Sprintf("# TYPE %s %s\n", e.Name, e.Type))
-			}
-			for lk, lv := range e.Labels {
-				labelstrings = append(labelstrings, fmt.Sprintf("%s=%s", lk, lv))
-			}
-			response = append(response, fmt.Sprintf("%s{%s} %d\n", e.Name, strings.Join(labelstrings, ","), e.Value))
-		}
-	}
-
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	w.WriteHeader(http.StatusOK)
-	for _, line := range response {
-		w.Write([]byte(line))
-	}
 }
 
 func loadPlugin(path string) (p *metricsPlugin) {
@@ -68,7 +41,12 @@ func loadPlugin(path string) (p *metricsPlugin) {
 		log.Error(err)
 		panic(err)
 	}
-	symbol, err := obj.Lookup("GetMetrics")
+	getCollector, err := obj.Lookup("GetCollector")
+	if err != nil {
+		log.Error(err)
+		panic(err)
+	}
+	updateMetric, err := obj.Lookup("UpdateMetric")
 	if err != nil {
 		log.Error(err)
 		panic(err)
@@ -77,7 +55,8 @@ func loadPlugin(path string) (p *metricsPlugin) {
 	p = new(metricsPlugin)
 	p.name = path
 	p.object = obj
-	p.metricsFunc = symbol.(func() []*types.Metric)
+	p.collectorFunc = getCollector.(func() prometheus.Collector)
+	p.metricsFunc = updateMetric.(func())
 	p.resolution = *resolution.(*int64)
 
 	log.Infof("loaded plugin: %s", p.name)
@@ -88,9 +67,7 @@ func runPlugin(p *metricsPlugin) {
 	var resolution = time.Duration(p.resolution * int64(time.Millisecond))
 	for true == true {
 		var start = time.Now()
-
-		m := p.metricsFunc()
-		metrics[p.name] = m
+		p.metricsFunc()
 		var sleepTime = resolution - time.Since(start)
 
 		time.Sleep(sleepTime)
@@ -103,16 +80,19 @@ func runPlugin(p *metricsPlugin) {
 func main() {
 	log.SetLevel(log.DebugLevel)
 
-	metrics = make(map[string][]*types.Metric)
+	loadedPlugins = make([]*metricsPlugin, 0)
 
 	var p = loadPlugin("sample.so")
-	go runPlugin(p)
-
+	loadedPlugins = append(loadedPlugins, p)
 	p = loadPlugin("sample2.so")
-	go runPlugin(p)
+	loadedPlugins = append(loadedPlugins, p)
+
+	for _, plugin := range loadedPlugins {
+		prometheus.MustRegister(plugin.collectorFunc())
+		go runPlugin(plugin)
+	}
 
 	log.Debug("starting server ...")
-	router := mux.NewRouter().StrictSlash(true)
-	router.HandleFunc("/metrics", handleMetricsEndpoint).Methods("GET")
-	http.ListenAndServe(fmt.Sprintf("%s:%s", getenvDefault("LISTEN_ADDRESS", "127.0.0.1"), getenvDefault("LISTEN_PORT", "8080")), router)
+	http.Handle("/metrics", promhttp.Handler())
+	log.Fatal(http.ListenAndServe(fmt.Sprintf("%s:%s", getenvDefault("LISTEN_ADDRESS", "127.0.0.1"), getenvDefault("LISTEN_PORT", "8080")), nil))
 }
